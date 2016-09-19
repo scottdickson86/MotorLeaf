@@ -1370,6 +1370,35 @@ def checkSerial():
                     if mailer.email_html_tls(login_address,email_password,to_address,"Reservoir Level is High",smtp_server, smtp_port,H2OLevel_Value[0],"%") == 1:
                         update_sql("UPDATE `H2OLevel` SET High_Alarm = 2, Low_Time = '" + now.strftime("%b %d %Y %I:%M:%S %p") + "'")
                 oldSetPoint_H2OLevel = line
+        elif 'setdevice' in line:
+            setdevice, devicetype, actual_status = line.split(",")
+            setdevice = setdevice.replace("Read fail", "")
+            actual_status = actual_status.rstrip()
+            print("\033[31;0H                                                                                                                       ")
+            print("\033[31;0H(" + now.strftime("%Y/%m/%d %H:%M:%S") + ") setdevice: %s,%s" % (devicetype,actual_status))
+            recorded_status = fetch_sql("SELECT status FROM Devices")
+            addMessageLog(recorded_status)
+            printMessageLog()
+            if actual_status == 0:  #this status is issued when the droplet and heart
+                                    #don't see each other, e.g.:
+                                    #   1) fresh out of box setup
+                                    #   2) connection loss
+                #overwrite sql status with 0 regardless of what's currently in it
+                update_sql("UPDATE `Devices` SET status = 0")
+                perform_commit = True
+            elif actual_status == 1: #this status should only be issued if and when 
+                                    #the heart detects the droplet
+                if recorded_status[0] == 0:
+                    update_sql("UPDATE `Devices` SET status = 1")
+                    perform_commit = True
+                elif recorded_status[0] == 1:
+                    #this is the part where the UI attaches the droplet
+                    #and it becomes viewbale in the dashboard 
+                    update_sql("UPDATE `Devices` SET status = 2")
+                    perform_commit = True
+                elif recorded_status[0] == 2:
+                    pass #do nothing; droplet is detected and already attached
+                
 ## NEED TO FIX THIS - DEVICE DISCONNECTION/RECONNECTION
 #    elif 'setdevice' in line:
 #        setdevice,devicetype,stats = line.split(",")
